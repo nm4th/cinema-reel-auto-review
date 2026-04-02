@@ -5,21 +5,18 @@ on:
   schedule:
     - cron: '0 14 * * *'
 
-  # 手動実行も可能（GitHub UI の Actions タブから）
+  # 手動実行も可能
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: 'ドライランモード (true = 投稿しない)'
-        required: true
-        default: 'true'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
+      target_date:
+        description: '対象日 (YYYY-MM-DD, 空欄=今日)'
+        required: false
+        default: ''
 
 env:
   SPACEMARKET_EMAIL: ${{ secrets.SPACEMARKET_EMAIL }}
   SPACEMARKET_PASSWORD: ${{ secrets.SPACEMARKET_PASSWORD }}
+  DRY_RUN: 'false'
 
 jobs:
   post-reviews:
@@ -29,6 +26,8 @@ jobs:
     steps:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
+        with:
+          ref: claude/automate-guest-reviews-fwB7Y
 
       - name: Python セットアップ
         uses: actions/setup-python@v5
@@ -46,20 +45,15 @@ jobs:
 
       - name: レビュー自動投稿を実行
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            DRY_RUN="${{ github.event.inputs.dry_run }}"
-          else
-            DRY_RUN="${{ vars.DRY_RUN || 'true' }}"
+          DATE_ARG=""
+          if [ -n "${{ github.event.inputs.target_date }}" ]; then
+            DATE_ARG="--date ${{ github.event.inputs.target_date }}"
           fi
 
-          export DRY_RUN
-          echo "モード: DRY_RUN=${DRY_RUN}"
+          echo "対象日: ${DATE_ARG:-今日}"
+          echo "モード: 本番（自動投稿ON）"
 
-          if [ "$DRY_RUN" = "false" ]; then
-            python main.py --no-dry-run
-          else
-            python main.py
-          fi
+          python main.py --no-dry-run $DATE_ARG
 
       - name: スクリーンショットを保存
         if: always()
