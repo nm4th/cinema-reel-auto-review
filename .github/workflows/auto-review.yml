@@ -1,0 +1,71 @@
+name: SpaceMarket ゲストレビュー自動投稿
+
+on:
+  # 毎日23:00 JST = 14:00 UTC に実行
+  schedule:
+    - cron: '0 14 * * *'
+
+  # 手動実行も可能（GitHub UI の Actions タブから）
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'ドライランモード (true = 投稿しない)'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  SPACEMARKET_EMAIL: ${{ secrets.SPACEMARKET_EMAIL }}
+  SPACEMARKET_PASSWORD: ${{ secrets.SPACEMARKET_PASSWORD }}
+
+jobs:
+  post-reviews:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 依存パッケージをインストール
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: スクリーンショット用ディレクトリ作成
+        run: mkdir -p screenshots
+
+      - name: レビュー自動投稿を実行
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            DRY_RUN="${{ github.event.inputs.dry_run }}"
+          else
+            DRY_RUN="${{ vars.DRY_RUN || 'true' }}"
+          fi
+
+          export DRY_RUN
+          echo "モード: DRY_RUN=${DRY_RUN}"
+
+          if [ "$DRY_RUN" = "false" ]; then
+            python main.py --no-dry-run
+          else
+            python main.py
+          fi
+
+      - name: スクリーンショットを保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ github.run_id }}
+          path: screenshots/
+          retention-days: 7
+          if-no-files-found: ignore
