@@ -266,17 +266,26 @@ def post_review_to_thread(thread_id: str, dry_run: bool = True):
                 return True
 
             logger.info("Step 6: レビューを投稿中...")
+            # 送信ボタンはFloatBottomコンテナ内の<a>タグ
+            # 構造: <div class="FloatBottom__Content..."><span>...<a>キャンセル</a>...</span><span>...<a>レビューの投稿</a>...</span></div>
             submit_btn = None
             for selector in [
-                'button:has-text("レビューの投稿")',
-                'button[type="submit"]',
-                'input[type="submit"]',
+                '[class*="FloatBottom"] a:has-text("レビューの投稿")',
+                '[class*="FloatBottom"] span:has-text("レビューの投稿")',
+                'a.jwzkwf',
+                'a:has(span:text-is("レビューの投稿"))',
             ]:
                 submit_btn = page.query_selector(selector)
                 if submit_btn:
-                    text = submit_btn.inner_text().strip() if submit_btn.evaluate('el => el.tagName') != 'INPUT' else ''
-                    logger.info(f"  送信ボタン発見: {selector} text='{text}'")
+                    logger.info(f"  送信ボタン発見: {selector}")
                     break
+
+            if not submit_btn:
+                # フォールバック: 「レビューの投稿」テキストを持つa要素の最後のもの
+                all_review_btns = page.query_selector_all('a:has-text("レビューの投稿")')
+                if all_review_btns:
+                    submit_btn = all_review_btns[-1]  # 最後の要素（フォーム下部のボタン）
+                    logger.info(f"  送信ボタン発見: 最後のa:has-text('レビューの投稿') ({len(all_review_btns)}個中)")
 
             if submit_btn:
                 submit_btn.click()

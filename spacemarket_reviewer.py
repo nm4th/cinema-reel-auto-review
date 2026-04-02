@@ -210,15 +210,28 @@ class SpaceMarketReviewer:
             self.page.screenshot(path=f"screenshots/dryrun_{reservation['thread_id']}.png")
             return True
 
-        # 投稿ボタンをクリック
+        # 投稿ボタンをクリック（FloatBottom内の<a>タグ）
         logger.info("  → レビューを送信中...")
-        submit_button = self.page.query_selector(
-            'button:has-text("投稿"), button[type="submit"]:has-text("投稿"), input[type="submit"]'
-        )
+        submit_button = None
+        for selector in [
+            '[class*="FloatBottom"] a:has-text("レビューの投稿")',
+            '[class*="FloatBottom"] span:has-text("レビューの投稿")',
+            'a:has(span:text-is("レビューの投稿"))',
+        ]:
+            submit_button = self.page.query_selector(selector)
+            if submit_button:
+                break
+
+        if not submit_button:
+            # フォールバック: 最後の「レビューの投稿」リンク
+            all_btns = self.page.query_selector_all('a:has-text("レビューの投稿")')
+            if all_btns:
+                submit_button = all_btns[-1]
+
         if submit_button:
             submit_button.click()
             self.page.wait_for_load_state("networkidle")
-            self.page.wait_for_timeout(2000)
+            self.page.wait_for_timeout(3000)
             logger.info("  → レビュー投稿完了！")
             return True
         else:
