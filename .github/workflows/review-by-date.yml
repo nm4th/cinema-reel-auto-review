@@ -1,0 +1,71 @@
+name: 日付指定レビュー投稿
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: '対象日 (YYYY-MM-DD形式, 例: 2026-03-30)'
+        required: true
+        default: '2026-03-30'
+      dry_run:
+        description: 'ドライランモード (true = 投稿しない)'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  SPACEMARKET_EMAIL: ${{ secrets.SPACEMARKET_EMAIL }}
+  SPACEMARKET_PASSWORD: ${{ secrets.SPACEMARKET_PASSWORD }}
+
+jobs:
+  post-reviews:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: claude/automate-guest-reviews-fwB7Y
+
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 依存パッケージをインストール
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: スクリーンショット用ディレクトリ作成
+        run: mkdir -p screenshots
+
+      - name: 日付指定レビュー投稿を実行
+        run: |
+          TARGET_DATE="${{ github.event.inputs.target_date }}"
+          DRY_RUN="${{ github.event.inputs.dry_run }}"
+
+          echo "対象日: ${TARGET_DATE}"
+          echo "モード: DRY_RUN=${DRY_RUN}"
+
+          export DRY_RUN
+
+          if [ "$DRY_RUN" = "false" ]; then
+            python main.py --date "$TARGET_DATE" --no-dry-run
+          else
+            python main.py --date "$TARGET_DATE"
+          fi
+
+      - name: スクリーンショットを保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-screenshots-${{ github.event.inputs.target_date }}-${{ github.run_id }}
+          path: screenshots/
+          retention-days: 7
+          if-no-files-found: ignore
