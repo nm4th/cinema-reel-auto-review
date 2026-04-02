@@ -42,17 +42,114 @@ def post_review_to_thread(thread_id: str, dry_run: bool = True):
             # Step 1: ログイン
             logger.info("Step 1: ログイン中...")
             page.goto(config.LOGIN_URL, wait_until="networkidle")
+            page.wait_for_timeout(3000)
             page.screenshot(path="screenshots/01_login_page.png")
 
-            page.fill('input[name="email"], input[type="email"]', config.SPACEMARKET_EMAIL)
-            page.fill('input[name="password"], input[type="password"]', config.SPACEMARKET_PASSWORD)
+            # ログインページのHTML構造をダンプ（デバッグ用）
+            login_html = page.content()
+            with open("screenshots/01_login_page.html", "w", encoding="utf-8") as f:
+                f.write(login_html)
+            logger.info(f"  ログインページURL: {page.url}")
+
+            # ページ内のinput要素とbutton要素を全て列挙
+            inputs = page.query_selector_all("input")
+            for inp in inputs:
+                inp_type = inp.get_attribute("type") or ""
+                inp_name = inp.get_attribute("name") or ""
+                inp_placeholder = inp.get_attribute("placeholder") or ""
+                logger.info(f"  INPUT: type={inp_type} name={inp_name} placeholder={inp_placeholder}")
+
+            buttons = page.query_selector_all("button, a[role='button'], input[type='submit'], [class*='btn'], [class*='Button']")
+            for btn in buttons:
+                tag = btn.evaluate("el => el.tagName")
+                text = btn.inner_text().strip()[:50] if tag != "INPUT" else ""
+                btn_type = btn.get_attribute("type") or ""
+                logger.info(f"  BUTTON: <{tag}> type={btn_type} text='{text}'")
+
+            # メールアドレス入力 - 複数のセレクタを試す
+            email_filled = False
+            for selector in [
+                'input[name="email"]',
+                'input[type="email"]',
+                'input[placeholder*="メール"]',
+                'input[placeholder*="mail"]',
+                'input[placeholder*="Mail"]',
+                'input[placeholder*="Email"]',
+                'input[autocomplete="email"]',
+                'input[id*="email"]',
+                'input[id*="Email"]',
+            ]:
+                el = page.query_selector(selector)
+                if el:
+                    el.fill(config.SPACEMARKET_EMAIL)
+                    email_filled = True
+                    logger.info(f"  メール入力: {selector}")
+                    break
+
+            if not email_filled:
+                # 最終手段: 1番目のテキスト/email input
+                text_inputs = page.query_selector_all('input[type="text"], input[type="email"], input:not([type])')
+                if text_inputs:
+                    text_inputs[0].fill(config.SPACEMARKET_EMAIL)
+                    email_filled = True
+                    logger.info("  メール入力: 最初のテキストinput")
+
+            # パスワード入力
+            pw_filled = False
+            for selector in [
+                'input[name="password"]',
+                'input[type="password"]',
+                'input[autocomplete="current-password"]',
+                'input[id*="password"]',
+                'input[id*="Password"]',
+            ]:
+                el = page.query_selector(selector)
+                if el:
+                    el.fill(config.SPACEMARKET_PASSWORD)
+                    pw_filled = True
+                    logger.info(f"  パスワード入力: {selector}")
+                    break
+
             page.screenshot(path="screenshots/02_login_filled.png")
 
-            page.click('button[type="submit"]')
+            if not email_filled or not pw_filled:
+                logger.error(f"  ログインフォームが見つかりません (email={email_filled}, pw={pw_filled})")
+                return False
+
+            # ログインボタンをクリック - 複数のセレクタを試す
+            login_clicked = False
+            for selector in [
+                'button[type="submit"]',
+                'input[type="submit"]',
+                'button:has-text("ログイン")',
+                'a:has-text("ログイン")',
+                'button:has-text("Log in")',
+                'button:has-text("Sign in")',
+                '[class*="login"] button',
+                '[class*="Login"] button',
+                'form button',
+            ]:
+                btn = page.query_selector(selector)
+                if btn:
+                    btn.click()
+                    login_clicked = True
+                    logger.info(f"  ログインボタンクリック: {selector}")
+                    break
+
+            if not login_clicked:
+                # 最終手段: Enterキーを送信
+                logger.info("  ログインボタンが見つからないため、Enterキーを送信")
+                page.keyboard.press("Enter")
+
             page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(5000)
             page.screenshot(path="screenshots/03_after_login.png")
             logger.info(f"  ログイン後URL: {page.url}")
+
+            # ログイン後のページHTMLもダンプ
+            after_login_html = page.content()
+            with open("screenshots/03_after_login.html", "w", encoding="utf-8") as f:
+                f.write(after_login_html)
 
             # Step 2: スレッドページに移動
             logger.info(f"Step 2: スレッドに移動中... ({thread_url})")

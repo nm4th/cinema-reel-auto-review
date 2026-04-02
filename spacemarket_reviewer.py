@@ -41,15 +41,54 @@ class SpaceMarketReviewer:
         """スペースマーケットにログインする"""
         logger.info("ログイン開始...")
         self.page.goto(config.LOGIN_URL, wait_until="networkidle")
+        self.page.wait_for_timeout(3000)
 
-        # メールアドレス入力
-        self.page.fill('input[name="email"], input[type="email"]', config.SPACEMARKET_EMAIL)
+        # メールアドレス入力 - 複数のセレクタを試す
+        email_selectors = [
+            'input[name="email"]', 'input[type="email"]',
+            'input[placeholder*="メール"]', 'input[placeholder*="mail"]',
+            'input[autocomplete="email"]', 'input[id*="email"]',
+        ]
+        for selector in email_selectors:
+            el = self.page.query_selector(selector)
+            if el:
+                el.fill(config.SPACEMARKET_EMAIL)
+                logger.info(f"  メール入力: {selector}")
+                break
+        else:
+            text_inputs = self.page.query_selector_all('input[type="text"], input:not([type])')
+            if text_inputs:
+                text_inputs[0].fill(config.SPACEMARKET_EMAIL)
+
         # パスワード入力
-        self.page.fill('input[name="password"], input[type="password"]', config.SPACEMARKET_PASSWORD)
-        # ログインボタンクリック
-        self.page.click('button[type="submit"]')
-        self.page.wait_for_load_state("networkidle")
+        pw_selectors = [
+            'input[name="password"]', 'input[type="password"]',
+            'input[autocomplete="current-password"]',
+        ]
+        for selector in pw_selectors:
+            el = self.page.query_selector(selector)
+            if el:
+                el.fill(config.SPACEMARKET_PASSWORD)
+                logger.info(f"  パスワード入力: {selector}")
+                break
 
+        # ログインボタンクリック - 複数のセレクタを試す
+        login_selectors = [
+            'button[type="submit"]', 'input[type="submit"]',
+            'button:has-text("ログイン")', 'a:has-text("ログイン")',
+            'button:has-text("Log in")', 'form button',
+        ]
+        for selector in login_selectors:
+            btn = self.page.query_selector(selector)
+            if btn:
+                btn.click()
+                logger.info(f"  ログインボタン: {selector}")
+                break
+        else:
+            self.page.keyboard.press("Enter")
+
+        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_timeout(5000)
         logger.info("ログイン完了")
 
     def navigate_to_inbox(self):
