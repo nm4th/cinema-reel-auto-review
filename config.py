@@ -18,7 +18,7 @@ REVIEW_MESSAGE = "ご利用いただきまして、ありがとうございま�
 
 # スペースマーケットURL
 BASE_URL = "https://dashboard.spacemarket.com"
-LOGIN_URL = "https://www.spacemarket.com/login"
+LOGIN_URL = "https://www.spacemarket.com/login?done=https%3A%2F%2Fdashboard.spacemarket.com%2F"
 INBOX_URL_PREFIX = f"{BASE_URL}/sop_geaeuhcrx1dr/inbox"
 
 # スケジュール設定

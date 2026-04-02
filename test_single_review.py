@@ -119,14 +119,12 @@ def post_review_to_thread(thread_id: str, dry_run: bool = True):
             # ログインボタンをクリック - 複数のセレクタを試す
             login_clicked = False
             for selector in [
-                'button[type="submit"]',
+                'input[type="submit"][name="commit"]',
                 'input[type="submit"]',
+                'button[type="submit"]',
                 'button:has-text("ログイン")',
+                'input[value="ログイン"]',
                 'a:has-text("ログイン")',
-                'button:has-text("Log in")',
-                'button:has-text("Sign in")',
-                '[class*="login"] button',
-                '[class*="Login"] button',
                 'form button',
             ]:
                 btn = page.query_selector(selector)

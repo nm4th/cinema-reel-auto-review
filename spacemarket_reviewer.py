@@ -74,9 +74,9 @@ class SpaceMarketReviewer:
 
         # ログインボタンクリック - 複数のセレクタを試す
         login_selectors = [
-            'button[type="submit"]', 'input[type="submit"]',
-            'button:has-text("ログイン")', 'a:has-text("ログイン")',
-            'button:has-text("Log in")', 'form button',
+            'input[type="submit"][name="commit"]', 'input[type="submit"]',
+            'button[type="submit"]', 'button:has-text("ログイン")',
+            'input[value="ログイン"]', 'form button',
         ]
         for selector in login_selectors:
             btn = self.page.query_selector(selector)
