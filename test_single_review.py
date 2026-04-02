@@ -289,12 +289,43 @@ def post_review_to_thread(thread_id: str, dry_run: bool = True):
 
             if submit_btn:
                 submit_btn.click()
-                page.wait_for_load_state("networkidle")
-                page.wait_for_timeout(3000)
-                page.screenshot(path="screenshots/08_after_submit.png")
-                logger.info(f"  投稿後URL: {page.url}")
-                logger.info("=== レビュー投稿完了！ ===")
-                return True
+                page.wait_for_timeout(2000)
+                page.screenshot(path="screenshots/08_confirm_dialog.png")
+                logger.info("  確認ダイアログが表示されました")
+
+                # Step 7: 確認ダイアログの「投稿」ボタンをクリック
+                logger.info("Step 7: 確認ダイアログの「投稿」ボタンをクリック...")
+                confirm_btn = None
+                for selector in [
+                    '[class*="ConfirmContent"] a:has-text("投稿")',
+                    '[class*="Confirm"] a:has-text("投稿")',
+                    '[class*="modal"] a:has-text("投稿")',
+                    '[role="dialog"] a:has-text("投稿")',
+                ]:
+                    confirm_btn = page.query_selector(selector)
+                    if confirm_btn:
+                        logger.info(f"  確認ボタン発見: {selector}")
+                        break
+
+                if not confirm_btn:
+                    # フォールバック: テキストが正確に「投稿」のa要素を探す
+                    all_btns = page.query_selector_all('a:has(span:text-is("投稿"))')
+                    if all_btns:
+                        confirm_btn = all_btns[-1]
+                        logger.info(f"  確認ボタン発見: フォールバック (a:has(span:text-is('投稿')))")
+
+                if confirm_btn:
+                    confirm_btn.click()
+                    page.wait_for_load_state("networkidle")
+                    page.wait_for_timeout(3000)
+                    page.screenshot(path="screenshots/09_after_confirm.png")
+                    logger.info(f"  投稿後URL: {page.url}")
+                    logger.info("=== レビュー投稿完了！ ===")
+                    return True
+                else:
+                    logger.error("  確認ダイアログの投稿ボタンが見つかりません")
+                    page.screenshot(path="screenshots/09_confirm_btn_not_found.png")
+                    return False
             else:
                 logger.error("  送信ボタンが見つかりません")
                 page.screenshot(path="screenshots/08_submit_not_found.png")

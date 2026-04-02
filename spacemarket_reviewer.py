@@ -230,10 +230,35 @@ class SpaceMarketReviewer:
 
         if submit_button:
             submit_button.click()
-            self.page.wait_for_load_state("networkidle")
-            self.page.wait_for_timeout(3000)
-            logger.info("  → レビュー投稿完了！")
-            return True
+            self.page.wait_for_timeout(2000)
+
+            # 確認ダイアログの「投稿」ボタンをクリック
+            logger.info("  → 確認ダイアログの「投稿」ボタンをクリック...")
+            confirm_btn = None
+            for selector in [
+                '[class*="ConfirmContent"] a:has-text("投稿")',
+                '[class*="Confirm"] a:has-text("投稿")',
+                '[class*="modal"] a:has-text("投稿")',
+            ]:
+                confirm_btn = self.page.query_selector(selector)
+                if confirm_btn:
+                    break
+
+            if not confirm_btn:
+                all_btns = self.page.query_selector_all('a:has(span:text-is("投稿"))')
+                if all_btns:
+                    confirm_btn = all_btns[-1]
+
+            if confirm_btn:
+                confirm_btn.click()
+                self.page.wait_for_load_state("networkidle")
+                self.page.wait_for_timeout(3000)
+                logger.info("  → レビュー投稿完了！")
+                return True
+            else:
+                logger.warning("  → 確認ダイアログの投稿ボタンが見つかりません")
+                self.page.screenshot(path="screenshots/confirm_not_found.png")
+                return False
         else:
             logger.warning("  → 送信ボタンが見つかりません")
             self.page.screenshot(path="screenshots/submit_not_found.png")
