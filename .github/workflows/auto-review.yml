@@ -1,9 +1,9 @@
 name: SpaceMarket ゲストレビュー自動投稿
 
 on:
-  # 毎日23:00 JST = 14:00 UTC に実行
+  # 毎日22:45 JST = 13:45 UTC に実行
   schedule:
-    - cron: '0 14 * * *'
+    - cron: '45 13 * * *'
 
   # 手動実行も可能
   workflow_dispatch:
