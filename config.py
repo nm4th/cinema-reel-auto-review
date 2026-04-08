@@ -22,4 +22,4 @@ LOGIN_URL = "https://www.spacemarket.com/login?done=https%3A%2F%2Fdashboard.spac
 INBOX_URL_PREFIX = f"{BASE_URL}/sop_geaeuhcrx1dr/inbox"
 
 # スケジュール設定
-SCHEDULE_TIME = "22:45"
+SCHEDULE_TIME = "22:30"
