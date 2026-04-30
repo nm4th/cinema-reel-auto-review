@@ -1,34 +1,23 @@
-name: ゲストレビュー自動投稿（スペマ＋インスタベース）
+name: テスト - インスタベースレビュー投稿
 
 on:
-  # 毎日22:30 JST = 13:30 UTC に実行
-  schedule:
-    - cron: '30 13 * * *'
-
-  # 手動実行も可能
   workflow_dispatch:
     inputs:
-      target_date:
-        description: 'スペマ対象日 (YYYY-MM-DD, 空欄=今日)'
-        required: false
-        default: ''
-      service:
-        description: '対象サービス'
+      dry_run:
+        description: 'ドライランモード (true = 投稿しない)'
         required: true
-        default: 'all'
+        default: 'false'
         type: choice
         options:
-          - 'all'
-          - 'spacemarket'
-          - 'instabase'
+          - 'true'
+          - 'false'
 
 env:
   SPACEMARKET_EMAIL: ${{ secrets.SPACEMARKET_EMAIL }}
   SPACEMARKET_PASSWORD: ${{ secrets.SPACEMARKET_PASSWORD }}
-  DRY_RUN: 'false'
 
 jobs:
-  post-reviews:
+  test-instabase-review:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -52,26 +41,23 @@ jobs:
       - name: スクリーンショット用ディレクトリ作成
         run: mkdir -p screenshots
 
-      - name: レビュー自動投稿を実行
+      - name: インスタベースレビュー投稿テスト
         run: |
-          DATE_ARG=""
-          if [ -n "${{ github.event.inputs.target_date }}" ]; then
-            DATE_ARG="--date ${{ github.event.inputs.target_date }}"
+          DRY_RUN="${{ github.event.inputs.dry_run }}"
+          export DRY_RUN
+          echo "モード: DRY_RUN=${DRY_RUN}"
+
+          if [ "$DRY_RUN" = "false" ]; then
+            python main.py --service instabase --no-dry-run
+          else
+            python main.py --service instabase
           fi
-
-          SERVICE="${{ github.event.inputs.service || 'all' }}"
-
-          echo "対象サービス: ${SERVICE}"
-          echo "スペマ対象日: ${DATE_ARG:-今日}"
-          echo "モード: 本番（自動投稿ON）"
-
-          python main.py --no-dry-run --service "$SERVICE" $DATE_ARG
 
       - name: スクリーンショットを保存
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: screenshots-${{ github.run_id }}
+          name: instabase-screenshots-${{ github.run_id }}
           path: screenshots/
           retention-days: 7
           if-no-files-found: ignore
