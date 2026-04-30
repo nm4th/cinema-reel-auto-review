@@ -43,7 +43,7 @@ class InstabaseReviewer:
         """
         logger.info("ログイン開始...")
         # レビューページに直接アクセス（未ログインならログインページにリダイレクト）
-        self.page.goto(config.INSTABASE_PENDING_REVIEWS_URL, wait_until="networkidle")
+        self.page.goto(config.INSTABASE_PENDING_REVIEWS_URL, wait_until="domcontentloaded")
         self.page.wait_for_timeout(3000)
         self.page.screenshot(path="screenshots/insta_01_login_page.png")
         logger.info(f"  リダイレクト先URL: {self.page.url}")
@@ -96,7 +96,7 @@ class InstabaseReviewer:
         else:
             self.page.keyboard.press("Enter")
 
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         self.page.wait_for_timeout(5000)
         self.page.screenshot(path="screenshots/insta_03_after_login.png")
         logger.info(f"ログイン完了 (URL: {self.page.url})")
@@ -108,7 +108,7 @@ class InstabaseReviewer:
             logger.info("投稿前のレビューページに既にいます")
         else:
             logger.info("投稿前のレビューページに移動中...")
-            self.page.goto(config.INSTABASE_PENDING_REVIEWS_URL, wait_until="networkidle")
+            self.page.goto(config.INSTABASE_PENDING_REVIEWS_URL, wait_until="domcontentloaded")
             self.page.wait_for_timeout(3000)
         self.page.screenshot(path="screenshots/insta_04_pending_reviews.png")
         logger.info(f"  URL: {self.page.url}")
@@ -173,7 +173,7 @@ class InstabaseReviewer:
         href = review["href"]
         if href:
             url = href if href.startswith("http") else f"https://www.instabase.jp{href}"
-            self.page.goto(url, wait_until="networkidle")
+            self.page.goto(url, wait_until="domcontentloaded")
         else:
             # hrefがない場合は投稿前のレビューページに戻って該当行のボタンをクリック
             self.navigate_to_pending_reviews()
@@ -191,7 +191,7 @@ class InstabaseReviewer:
                 logger.warning(f"  → {guest_name}: 行が見つかりません")
                 return False
 
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         self.page.wait_for_timeout(3000)
         self.page.screenshot(path=f"screenshots/insta_05_review_form_{review['booking_id']}.png")
         logger.info(f"  レビューフォーム表示 (URL: {self.page.url})")
@@ -245,7 +245,7 @@ class InstabaseReviewer:
             return False
 
         submit_btn.click()
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         self.page.wait_for_timeout(3000)
         self.page.screenshot(path=f"screenshots/insta_07_after_submit_{review['booking_id']}.png")
 
@@ -261,7 +261,7 @@ class InstabaseReviewer:
             if confirm_btn:
                 logger.info(f"    確認ダイアログ: {selector}")
                 confirm_btn.click()
-                self.page.wait_for_load_state("networkidle")
+                self.page.wait_for_load_state("domcontentloaded")
                 self.page.wait_for_timeout(3000)
                 self.page.screenshot(path=f"screenshots/insta_08_confirmed_{review['booking_id']}.png")
                 break
