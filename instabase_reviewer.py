@@ -96,89 +96,47 @@ class InstabaseReviewer:
         self._close_popups()
 
     def _close_popups(self):
-        """ポップアップやモーダルを全て閉じる"""
+        """ポップアップやモーダルを全て閉じる（JavaScript で強制削除）"""
         logger.info("  ポップアップを閉じています...")
 
-        # 方法1: Escapeキーを複数回押す（モーダルを閉じる最も確実な方法）
-        for i in range(3):
-            self.page.keyboard.press("Escape")
-            self.page.wait_for_timeout(800)
+        # ページのHTML構造をダンプ（デバッグ用）
+        html = self.page.content()
+        with open("screenshots/insta_03b_page_html.html", "w", encoding="utf-8") as f:
+            f.write(html)
 
-        self.page.screenshot(path="screenshots/insta_03b_after_escape.png")
+        # 方法1: JavaScriptでモーダル/オーバーレイ要素を強制削除
+        removed = self.page.evaluate("""() => {
+            let removed = 0;
 
-        # 方法2: 残っているポップアップの閉じるボタンをクリック
-        closed = 0
-        close_selectors = [
-            # 汎用的な閉じるボタン
-            'button.close',
-            '.close',
-            'button[aria-label="close"]',
-            'button[aria-label="Close"]',
-            '[aria-label="close"]',
-            '[aria-label="Close"]',
-            # モーダル系
-            '[class*="modal"] .close',
-            '[class*="Modal"] .close',
-            '[class*="modal-close"]',
-            '[class*="modalClose"]',
-            # Delightedアンケート
-            'div[class*="delighted"] button',
-            'iframe + div button',
-            # 汎用: role=dialog内の閉じるボタン
-            '[role="dialog"] button:first-child',
-        ]
+            // 1. Delighted のアンケートバーを削除
+            document.querySelectorAll('[id*="delighted"], [class*="delighted"], [id*="Delighted"], [class*="Delighted"]').forEach(el => {
+                el.remove();
+                removed++;
+            });
 
-        for selector in close_selectors:
-            try:
-                buttons = self.page.query_selector_all(selector)
-                for btn in buttons:
-                    try:
-                        if btn.is_visible():
-                            btn.click()
-                            closed += 1
-                            self.page.wait_for_timeout(500)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+            // 2. モーダルオーバーレイを削除
+            document.querySelectorAll('[class*="modal"], [class*="Modal"], [role="dialog"], [class*="overlay"], [class*="Overlay"]').forEach(el => {
+                el.remove();
+                removed++;
+            });
 
-        # 方法3: ✕ / × テキストを持つクリッカブルな要素を探す
-        for char in ["✕", "×", "✖", "╳", "ᳵ"]:
-            try:
-                elements = self.page.query_selector_all(f'button:has-text("{char}"), a:has-text("{char}"), span:has-text("{char}"), div:has-text("{char}")')
-                for el in elements:
-                    try:
-                        if el.is_visible():
-                            box = el.bounding_box()
-                            # 小さい要素（閉じるボタンらしいもの）のみクリック
-                            if box and box["width"] < 80 and box["height"] < 80:
-                                el.click()
-                                closed += 1
-                                self.page.wait_for_timeout(500)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+            // 3. z-indexが高い要素（ポップアップ的なもの）を削除
+            document.querySelectorAll('div').forEach(el => {
+                const style = window.getComputedStyle(el);
+                const zIndex = parseInt(style.zIndex);
+                if (zIndex > 999 && style.position === 'fixed') {
+                    el.remove();
+                    removed++;
+                }
+            });
 
-        # 方法4: Delightedのiframe内の閉じるボタン
-        try:
-            frames = self.page.frames
-            for frame in frames:
-                try:
-                    close_btn = frame.query_selector('button[aria-label="close"], button.close, .close')
-                    if close_btn and close_btn.is_visible():
-                        close_btn.click()
-                        closed += 1
-                        self.page.wait_for_timeout(500)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+            // 4. body のスクロールロックを解除
+            document.body.style.overflow = 'auto';
+            document.documentElement.style.overflow = 'auto';
 
-        if closed > 0:
-            logger.info(f"  → {closed}個のポップアップを閉じました")
-        else:
-            logger.info("  → Escapeキーで閉じました（またはポップアップなし）")
+            return removed;
+        }""")
+        logger.info(f"  → JavaScript で {removed} 個の要素を削除しました")
 
         self.page.wait_for_timeout(1000)
         self.page.screenshot(path="screenshots/insta_03c_popups_closed.png")
