@@ -92,6 +92,67 @@ class InstabaseReviewer:
         self.page.screenshot(path="screenshots/insta_03_after_login.png")
         logger.info(f"ログイン完了 (URL: {self.page.url})")
 
+        # ログイン後のポップアップを全て閉じる
+        self._close_popups()
+
+    def _close_popups(self):
+        """ポップアップやモーダルを全て閉じる"""
+        logger.info("  ポップアップを閉じています...")
+        closed = 0
+
+        # 閉じるボタンの候補を全て試す
+        close_selectors = [
+            'button.close',
+            'button[aria-label="close"]',
+            'button[aria-label="Close"]',
+            '[class*="modal"] button[class*="close"]',
+            '[class*="modal"] [class*="close"]',
+            '[class*="Modal"] button[class*="close"]',
+            '[class*="dialog"] button[class*="close"]',
+            '[class*="popup"] button[class*="close"]',
+            '[class*="Popup"] button[class*="close"]',
+            'div[class*="delighted"] button',
+            'div[class*="Delighted"] button',
+            '[data-testid="close"]',
+        ]
+
+        for selector in close_selectors:
+            buttons = self.page.query_selector_all(selector)
+            for btn in buttons:
+                try:
+                    if btn.is_visible():
+                        btn.click()
+                        closed += 1
+                        self.page.wait_for_timeout(500)
+                except Exception:
+                    pass
+
+        # ✕ テキストや × 記号のボタンも探す
+        for text_selector in [
+            'button:has-text("✕")',
+            'button:has-text("×")',
+            'a:has-text("✕")',
+            'a:has-text("×")',
+            'span:has-text("✕")',
+            'span:has-text("×")',
+        ]:
+            buttons = self.page.query_selector_all(text_selector)
+            for btn in buttons:
+                try:
+                    if btn.is_visible():
+                        btn.click()
+                        closed += 1
+                        self.page.wait_for_timeout(500)
+                except Exception:
+                    pass
+
+        if closed > 0:
+            logger.info(f"  → {closed}個のポップアップを閉じました")
+            self.page.wait_for_timeout(1000)
+            self.page.screenshot(path="screenshots/insta_03b_popups_closed.png")
+        else:
+            logger.info("  → ポップアップなし")
+
     def navigate_to_pending_reviews(self):
         """「投稿前のレビュー」ページに移動する"""
         logger.info("投稿前のレビューページに移動中...")
