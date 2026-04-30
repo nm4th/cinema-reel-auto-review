@@ -46,6 +46,7 @@ class InstabaseReviewer:
         # メールアドレス入力
         for selector in [
             'input[name="email"]', 'input[type="email"]',
+            'input[placeholder*="mail@instabase"]',
             'input[placeholder*="メール"]', 'input[id*="email"]',
         ]:
             el = self.page.query_selector(selector)

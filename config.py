@@ -22,7 +22,7 @@ LOGIN_URL = "https://www.spacemarket.com/login?done=https%3A%2F%2Fdashboard.spac
 INBOX_URL_PREFIX = f"{BASE_URL}/sop_geaeuhcrx1dr/inbox"
 
 # インスタベースURL
-INSTABASE_LOGIN_URL = "https://www.instabase.jp/partners/login"
+INSTABASE_LOGIN_URL = "https://www.instabase.jp/partners/sign_in"
 INSTABASE_PENDING_REVIEWS_URL = "https://www.instabase.jp/partners/bookings/user_review_creatables"
 
 # スケジュール設定
