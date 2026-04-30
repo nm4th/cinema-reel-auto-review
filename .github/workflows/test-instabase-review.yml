@@ -1,0 +1,63 @@
+name: テスト - インスタベースレビュー投稿
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'ドライランモード (true = 投稿しない)'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  SPACEMARKET_EMAIL: ${{ secrets.SPACEMARKET_EMAIL }}
+  SPACEMARKET_PASSWORD: ${{ secrets.SPACEMARKET_PASSWORD }}
+
+jobs:
+  test-instabase-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: claude/automate-guest-reviews-fwB7Y
+
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 依存パッケージをインストール
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: スクリーンショット用ディレクトリ作成
+        run: mkdir -p screenshots
+
+      - name: インスタベースレビュー投稿テスト
+        run: |
+          DRY_RUN="${{ github.event.inputs.dry_run }}"
+          export DRY_RUN
+          echo "モード: DRY_RUN=${DRY_RUN}"
+
+          if [ "$DRY_RUN" = "false" ]; then
+            python main.py --service instabase --no-dry-run
+          else
+            python main.py --service instabase
+          fi
+
+      - name: スクリーンショットを保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instabase-screenshots-${{ github.run_id }}
+          path: screenshots/
+          retention-days: 7
+          if-no-files-found: ignore
