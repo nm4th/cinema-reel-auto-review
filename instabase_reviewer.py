@@ -88,15 +88,29 @@ class InstabaseReviewer:
             self.page.keyboard.press("Enter")
 
         self.page.wait_for_load_state("networkidle")
-        self.page.wait_for_timeout(5000)
-        self.page.screenshot(path="screenshots/insta_03_after_login.png")
+        self.page.wait_for_timeout(3000)
         logger.info(f"ログイン完了 (URL: {self.page.url})")
 
+    def _remove_overlays(self):
+        """ページ上のポップアップ/オーバーレイをJSで強制削除する"""
+        self.page.evaluate("""() => {
+            // fixed/absoluteで画面を覆っている要素を削除
+            document.querySelectorAll('div, aside, section, iframe').forEach(el => {
+                const style = window.getComputedStyle(el);
+                if ((style.position === 'fixed' || style.position === 'absolute') && parseInt(style.zIndex) > 100) {
+                    el.remove();
+                }
+            });
+            document.body.style.overflow = 'auto';
+            document.documentElement.style.overflow = 'auto';
+        }""")
+
     def navigate_to_pending_reviews(self):
-        """「投稿前のレビュー」ページに移動する（ポップアップを回避）"""
+        """「投稿前のレビュー」ページに移動する"""
         logger.info("投稿前のレビューページに移動中...")
         self.page.goto(config.INSTABASE_PENDING_REVIEWS_URL, wait_until="networkidle")
         self.page.wait_for_timeout(3000)
+        self._remove_overlays()
         self.page.screenshot(path="screenshots/insta_04_pending_reviews.png")
         logger.info(f"  URL: {self.page.url}")
 
