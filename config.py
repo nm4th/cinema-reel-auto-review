@@ -26,4 +26,4 @@ INSTABASE_LOGIN_URL = "https://www.instabase.jp/partners/sign_in"
 INSTABASE_PENDING_REVIEWS_URL = "https://www.instabase.jp/partners/bookings/user_review_creatables"
 
 # スケジュール設定
-SCHEDULE_TIME = "22:30"
+SCHEDULE_TIME = "23:00"
