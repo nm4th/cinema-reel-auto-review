@@ -92,57 +92,8 @@ class InstabaseReviewer:
         self.page.screenshot(path="screenshots/insta_03_after_login.png")
         logger.info(f"ログイン完了 (URL: {self.page.url})")
 
-        # ログイン後のポップアップを全て閉じる
-        self._close_popups()
-
-    def _close_popups(self):
-        """ポップアップやモーダルを全て閉じる（JavaScript で強制削除）"""
-        logger.info("  ポップアップを閉じています...")
-
-        # ページのHTML構造をダンプ（デバッグ用）
-        html = self.page.content()
-        with open("screenshots/insta_03b_page_html.html", "w", encoding="utf-8") as f:
-            f.write(html)
-
-        # 方法1: JavaScriptでモーダル/オーバーレイ要素を強制削除
-        removed = self.page.evaluate("""() => {
-            let removed = 0;
-
-            // 1. Delighted のアンケートバーを削除
-            document.querySelectorAll('[id*="delighted"], [class*="delighted"], [id*="Delighted"], [class*="Delighted"]').forEach(el => {
-                el.remove();
-                removed++;
-            });
-
-            // 2. モーダルオーバーレイを削除
-            document.querySelectorAll('[class*="modal"], [class*="Modal"], [role="dialog"], [class*="overlay"], [class*="Overlay"]').forEach(el => {
-                el.remove();
-                removed++;
-            });
-
-            // 3. z-indexが高い要素（ポップアップ的なもの）を削除
-            document.querySelectorAll('div').forEach(el => {
-                const style = window.getComputedStyle(el);
-                const zIndex = parseInt(style.zIndex);
-                if (zIndex > 999 && style.position === 'fixed') {
-                    el.remove();
-                    removed++;
-                }
-            });
-
-            // 4. body のスクロールロックを解除
-            document.body.style.overflow = 'auto';
-            document.documentElement.style.overflow = 'auto';
-
-            return removed;
-        }""")
-        logger.info(f"  → JavaScript で {removed} 個の要素を削除しました")
-
-        self.page.wait_for_timeout(1000)
-        self.page.screenshot(path="screenshots/insta_03c_popups_closed.png")
-
     def navigate_to_pending_reviews(self):
-        """「投稿前のレビュー」ページに移動する"""
+        """「投稿前のレビュー」ページに移動する（ポップアップを回避）"""
         logger.info("投稿前のレビューページに移動中...")
         self.page.goto(config.INSTABASE_PENDING_REVIEWS_URL, wait_until="networkidle")
         self.page.wait_for_timeout(3000)
