@@ -36,12 +36,22 @@ class InstabaseReviewer:
             logger.info("ブラウザ終了")
 
     def login(self):
-        """インスタベースにログインする"""
+        """インスタベースにログインする
+
+        レビューページに直接アクセス → ログインにリダイレクト → ログイン後にレビューページに戻る
+        これによりダッシュボードのポップアップを完全に回避する。
+        """
         logger.info("ログイン開始...")
-        self.page.goto(config.INSTABASE_LOGIN_URL, wait_until="networkidle")
+        # レビューページに直接アクセス（未ログインならログインページにリダイレクト）
+        self.page.goto(config.INSTABASE_PENDING_REVIEWS_URL, wait_until="networkidle")
         self.page.wait_for_timeout(3000)
         self.page.screenshot(path="screenshots/insta_01_login_page.png")
-        logger.info(f"  ログインページURL: {self.page.url}")
+        logger.info(f"  リダイレクト先URL: {self.page.url}")
+
+        # 既にログイン済みならスキップ
+        if "sign_in" not in self.page.url and "login" not in self.page.url:
+            logger.info("  既にログイン済み")
+            return
 
         # メールアドレス入力
         for selector in [
@@ -76,7 +86,6 @@ class InstabaseReviewer:
             'button[type="submit"]',
             'button:has-text("ログイン")',
             'input[value="ログイン"]',
-            'a:has-text("ログイン")',
             'form button',
         ]:
             btn = self.page.query_selector(selector)
@@ -88,29 +97,19 @@ class InstabaseReviewer:
             self.page.keyboard.press("Enter")
 
         self.page.wait_for_load_state("networkidle")
-        self.page.wait_for_timeout(3000)
+        self.page.wait_for_timeout(5000)
+        self.page.screenshot(path="screenshots/insta_03_after_login.png")
         logger.info(f"ログイン完了 (URL: {self.page.url})")
-
-    def _remove_overlays(self):
-        """ページ上のポップアップ/オーバーレイをJSで強制削除する"""
-        self.page.evaluate("""() => {
-            // fixed/absoluteで画面を覆っている要素を削除
-            document.querySelectorAll('div, aside, section, iframe').forEach(el => {
-                const style = window.getComputedStyle(el);
-                if ((style.position === 'fixed' || style.position === 'absolute') && parseInt(style.zIndex) > 100) {
-                    el.remove();
-                }
-            });
-            document.body.style.overflow = 'auto';
-            document.documentElement.style.overflow = 'auto';
-        }""")
 
     def navigate_to_pending_reviews(self):
         """「投稿前のレビュー」ページに移動する"""
-        logger.info("投稿前のレビューページに移動中...")
-        self.page.goto(config.INSTABASE_PENDING_REVIEWS_URL, wait_until="networkidle")
-        self.page.wait_for_timeout(3000)
-        self._remove_overlays()
+        # ログイン後のリダイレクトで既にレビューページにいる場合はスキップ
+        if "user_review_creatables" in self.page.url:
+            logger.info("投稿前のレビューページに既にいます")
+        else:
+            logger.info("投稿前のレビューページに移動中...")
+            self.page.goto(config.INSTABASE_PENDING_REVIEWS_URL, wait_until="networkidle")
+            self.page.wait_for_timeout(3000)
         self.page.screenshot(path="screenshots/insta_04_pending_reviews.png")
         logger.info(f"  URL: {self.page.url}")
 
