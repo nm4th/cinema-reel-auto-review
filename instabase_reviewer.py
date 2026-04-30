@@ -98,60 +98,90 @@ class InstabaseReviewer:
     def _close_popups(self):
         """ポップアップやモーダルを全て閉じる"""
         logger.info("  ポップアップを閉じています...")
-        closed = 0
 
-        # 閉じるボタンの候補を全て試す
+        # 方法1: Escapeキーを複数回押す（モーダルを閉じる最も確実な方法）
+        for i in range(3):
+            self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(800)
+
+        self.page.screenshot(path="screenshots/insta_03b_after_escape.png")
+
+        # 方法2: 残っているポップアップの閉じるボタンをクリック
+        closed = 0
         close_selectors = [
+            # 汎用的な閉じるボタン
             'button.close',
+            '.close',
             'button[aria-label="close"]',
             'button[aria-label="Close"]',
-            '[class*="modal"] button[class*="close"]',
-            '[class*="modal"] [class*="close"]',
-            '[class*="Modal"] button[class*="close"]',
-            '[class*="dialog"] button[class*="close"]',
-            '[class*="popup"] button[class*="close"]',
-            '[class*="Popup"] button[class*="close"]',
+            '[aria-label="close"]',
+            '[aria-label="Close"]',
+            # モーダル系
+            '[class*="modal"] .close',
+            '[class*="Modal"] .close',
+            '[class*="modal-close"]',
+            '[class*="modalClose"]',
+            # Delightedアンケート
             'div[class*="delighted"] button',
-            'div[class*="Delighted"] button',
-            '[data-testid="close"]',
+            'iframe + div button',
+            # 汎用: role=dialog内の閉じるボタン
+            '[role="dialog"] button:first-child',
         ]
 
         for selector in close_selectors:
-            buttons = self.page.query_selector_all(selector)
-            for btn in buttons:
-                try:
-                    if btn.is_visible():
-                        btn.click()
-                        closed += 1
-                        self.page.wait_for_timeout(500)
-                except Exception:
-                    pass
+            try:
+                buttons = self.page.query_selector_all(selector)
+                for btn in buttons:
+                    try:
+                        if btn.is_visible():
+                            btn.click()
+                            closed += 1
+                            self.page.wait_for_timeout(500)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
-        # ✕ テキストや × 記号のボタンも探す
-        for text_selector in [
-            'button:has-text("✕")',
-            'button:has-text("×")',
-            'a:has-text("✕")',
-            'a:has-text("×")',
-            'span:has-text("✕")',
-            'span:has-text("×")',
-        ]:
-            buttons = self.page.query_selector_all(text_selector)
-            for btn in buttons:
+        # 方法3: ✕ / × テキストを持つクリッカブルな要素を探す
+        for char in ["✕", "×", "✖", "╳", "ᳵ"]:
+            try:
+                elements = self.page.query_selector_all(f'button:has-text("{char}"), a:has-text("{char}"), span:has-text("{char}"), div:has-text("{char}")')
+                for el in elements:
+                    try:
+                        if el.is_visible():
+                            box = el.bounding_box()
+                            # 小さい要素（閉じるボタンらしいもの）のみクリック
+                            if box and box["width"] < 80 and box["height"] < 80:
+                                el.click()
+                                closed += 1
+                                self.page.wait_for_timeout(500)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        # 方法4: Delightedのiframe内の閉じるボタン
+        try:
+            frames = self.page.frames
+            for frame in frames:
                 try:
-                    if btn.is_visible():
-                        btn.click()
+                    close_btn = frame.query_selector('button[aria-label="close"], button.close, .close')
+                    if close_btn and close_btn.is_visible():
+                        close_btn.click()
                         closed += 1
                         self.page.wait_for_timeout(500)
                 except Exception:
                     pass
+        except Exception:
+            pass
 
         if closed > 0:
             logger.info(f"  → {closed}個のポップアップを閉じました")
-            self.page.wait_for_timeout(1000)
-            self.page.screenshot(path="screenshots/insta_03b_popups_closed.png")
         else:
-            logger.info("  → ポップアップなし")
+            logger.info("  → Escapeキーで閉じました（またはポップアップなし）")
+
+        self.page.wait_for_timeout(1000)
+        self.page.screenshot(path="screenshots/insta_03c_popups_closed.png")
 
     def navigate_to_pending_reviews(self):
         """「投稿前のレビュー」ページに移動する"""
