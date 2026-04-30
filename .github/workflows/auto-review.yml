@@ -1,11 +1,7 @@
 name: ゲストレビュー自動投稿（スペマ＋インスタベース）
 
 on:
-  # 毎日23:00 JST = 14:00 UTC に実行
-  schedule:
-    - cron: '0 14 * * *'
-
-  # 手動実行も可能
+  # cron-job.org または手動で実行
   workflow_dispatch:
     inputs:
       target_date:
