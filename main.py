@@ -22,6 +22,7 @@ import schedule
 import config
 from spacemarket_reviewer import SpaceMarketReviewer
 from instabase_reviewer import InstabaseReviewer
+from calendar_blocker import CalendarPrepBlocker
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,6 +57,17 @@ def run_review_job(dry_run: bool = True, target_date: date | None = None, servic
         except Exception as e:
             logger.error(f"インスタベース処理でエラー: {e}")
 
+    # Google カレンダー 準備時間ブロック
+    if service in ("all", "calendar"):
+        try:
+            logger.info("========================================")
+            logger.info("  Google カレンダー 準備時間ブロック")
+            logger.info("========================================")
+            blocker = CalendarPrepBlocker(dry_run=dry_run)
+            blocker.run()
+        except Exception as e:
+            logger.error(f"カレンダーブロック処理でエラー: {e}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="ゲストレビュー自動投稿ツール（スペースマーケット＋インスタベース）")
@@ -69,7 +81,7 @@ def main():
         "--service",
         type=str,
         default="all",
-        choices=["all", "spacemarket", "instabase"],
+        choices=["all", "spacemarket", "instabase", "calendar"],
         help="実行するサービス (デフォルト: all)",
     )
     parser.add_argument(

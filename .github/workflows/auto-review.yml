@@ -1,4 +1,4 @@
-name: ゲストレビュー自動投稿（スペマ＋インスタベース）
+name: レビュー自動投稿＋カレンダーブロック
 
 on:
   # cron-job.org または手動で実行
@@ -17,14 +17,16 @@ on:
           - 'all'
           - 'spacemarket'
           - 'instabase'
+          - 'calendar'
 
 env:
   SPACEMARKET_EMAIL: ${{ secrets.SPACEMARKET_EMAIL }}
   SPACEMARKET_PASSWORD: ${{ secrets.SPACEMARKET_PASSWORD }}
+  GOOGLE_CALENDAR_CREDENTIALS: ${{ secrets.GOOGLE_CALENDAR_CREDENTIALS }}
   DRY_RUN: 'false'
 
 jobs:
-  post-reviews:
+  run-all:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -48,7 +50,7 @@ jobs:
       - name: スクリーンショット用ディレクトリ作成
         run: mkdir -p screenshots
 
-      - name: レビュー自動投稿を実行
+      - name: 自動処理を実行
         run: |
           DATE_ARG=""
           if [ -n "${{ github.event.inputs.target_date }}" ]; then

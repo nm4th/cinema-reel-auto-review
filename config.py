@@ -25,5 +25,11 @@ INBOX_URL_PREFIX = f"{BASE_URL}/sop_geaeuhcrx1dr/inbox"
 INSTABASE_LOGIN_URL = "https://www.instabase.jp/partners/sign_in"
 INSTABASE_PENDING_REVIEWS_URL = "https://www.instabase.jp/partners/bookings/user_review_creatables"
 
+# Google Calendar 設定
+GOOGLE_CALENDAR_ID = "cinema.reel.shinjuku@gmail.com"
+GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CALENDAR_CREDENTIALS", "")
+PREP_TIME_MINUTES = 15
+PREP_EVENT_TITLE = "準備時間"
+
 # スケジュール設定
 SCHEDULE_TIME = "23:00"
