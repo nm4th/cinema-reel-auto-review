@@ -36,12 +36,22 @@ class InstabaseReviewer:
             logger.info("ブラウザ終了")
 
     def login(self):
-        """インスタベースにログインする"""
+        """インスタベースにログインする
+
+        レビューページに直接アクセス → ログインにリダイレクト → ログイン後にレビューページに戻る
+        これによりダッシュボードのポップアップを完全に回避する。
+        """
         logger.info("ログイン開始...")
-        self.page.goto(config.INSTABASE_LOGIN_URL, wait_until="networkidle")
+        # レビューページに直接アクセス（未ログインならログインページにリダイレクト）
+        self.page.goto(config.INSTABASE_PENDING_REVIEWS_URL, wait_until="domcontentloaded")
         self.page.wait_for_timeout(3000)
         self.page.screenshot(path="screenshots/insta_01_login_page.png")
-        logger.info(f"  ログインページURL: {self.page.url}")
+        logger.info(f"  リダイレクト先URL: {self.page.url}")
+
+        # 既にログイン済みならスキップ
+        if "sign_in" not in self.page.url and "login" not in self.page.url:
+            logger.info("  既にログイン済み")
+            return
 
         # メールアドレス入力
         for selector in [
@@ -76,7 +86,6 @@ class InstabaseReviewer:
             'button[type="submit"]',
             'button:has-text("ログイン")',
             'input[value="ログイン"]',
-            'a:has-text("ログイン")',
             'form button',
         ]:
             btn = self.page.query_selector(selector)
@@ -87,77 +96,20 @@ class InstabaseReviewer:
         else:
             self.page.keyboard.press("Enter")
 
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         self.page.wait_for_timeout(5000)
         self.page.screenshot(path="screenshots/insta_03_after_login.png")
         logger.info(f"ログイン完了 (URL: {self.page.url})")
 
-        # ログイン後のポップアップを全て閉じる
-        self._close_popups()
-
-    def _close_popups(self):
-        """ポップアップやモーダルを全て閉じる"""
-        logger.info("  ポップアップを閉じています...")
-        closed = 0
-
-        # 閉じるボタンの候補を全て試す
-        close_selectors = [
-            'button.close',
-            'button[aria-label="close"]',
-            'button[aria-label="Close"]',
-            '[class*="modal"] button[class*="close"]',
-            '[class*="modal"] [class*="close"]',
-            '[class*="Modal"] button[class*="close"]',
-            '[class*="dialog"] button[class*="close"]',
-            '[class*="popup"] button[class*="close"]',
-            '[class*="Popup"] button[class*="close"]',
-            'div[class*="delighted"] button',
-            'div[class*="Delighted"] button',
-            '[data-testid="close"]',
-        ]
-
-        for selector in close_selectors:
-            buttons = self.page.query_selector_all(selector)
-            for btn in buttons:
-                try:
-                    if btn.is_visible():
-                        btn.click()
-                        closed += 1
-                        self.page.wait_for_timeout(500)
-                except Exception:
-                    pass
-
-        # ✕ テキストや × 記号のボタンも探す
-        for text_selector in [
-            'button:has-text("✕")',
-            'button:has-text("×")',
-            'a:has-text("✕")',
-            'a:has-text("×")',
-            'span:has-text("✕")',
-            'span:has-text("×")',
-        ]:
-            buttons = self.page.query_selector_all(text_selector)
-            for btn in buttons:
-                try:
-                    if btn.is_visible():
-                        btn.click()
-                        closed += 1
-                        self.page.wait_for_timeout(500)
-                except Exception:
-                    pass
-
-        if closed > 0:
-            logger.info(f"  → {closed}個のポップアップを閉じました")
-            self.page.wait_for_timeout(1000)
-            self.page.screenshot(path="screenshots/insta_03b_popups_closed.png")
-        else:
-            logger.info("  → ポップアップなし")
-
     def navigate_to_pending_reviews(self):
         """「投稿前のレビュー」ページに移動する"""
-        logger.info("投稿前のレビューページに移動中...")
-        self.page.goto(config.INSTABASE_PENDING_REVIEWS_URL, wait_until="networkidle")
-        self.page.wait_for_timeout(3000)
+        # ログイン後のリダイレクトで既にレビューページにいる場合はスキップ
+        if "user_review_creatables" in self.page.url:
+            logger.info("投稿前のレビューページに既にいます")
+        else:
+            logger.info("投稿前のレビューページに移動中...")
+            self.page.goto(config.INSTABASE_PENDING_REVIEWS_URL, wait_until="domcontentloaded")
+            self.page.wait_for_timeout(3000)
         self.page.screenshot(path="screenshots/insta_04_pending_reviews.png")
         logger.info(f"  URL: {self.page.url}")
 
@@ -221,7 +173,7 @@ class InstabaseReviewer:
         href = review["href"]
         if href:
             url = href if href.startswith("http") else f"https://www.instabase.jp{href}"
-            self.page.goto(url, wait_until="networkidle")
+            self.page.goto(url, wait_until="domcontentloaded")
         else:
             # hrefがない場合は投稿前のレビューページに戻って該当行のボタンをクリック
             self.navigate_to_pending_reviews()
@@ -239,7 +191,7 @@ class InstabaseReviewer:
                 logger.warning(f"  → {guest_name}: 行が見つかりません")
                 return False
 
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         self.page.wait_for_timeout(3000)
         self.page.screenshot(path=f"screenshots/insta_05_review_form_{review['booking_id']}.png")
         logger.info(f"  レビューフォーム表示 (URL: {self.page.url})")
@@ -293,7 +245,7 @@ class InstabaseReviewer:
             return False
 
         submit_btn.click()
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         self.page.wait_for_timeout(3000)
         self.page.screenshot(path=f"screenshots/insta_07_after_submit_{review['booking_id']}.png")
 
@@ -309,7 +261,7 @@ class InstabaseReviewer:
             if confirm_btn:
                 logger.info(f"    確認ダイアログ: {selector}")
                 confirm_btn.click()
-                self.page.wait_for_load_state("networkidle")
+                self.page.wait_for_load_state("domcontentloaded")
                 self.page.wait_for_timeout(3000)
                 self.page.screenshot(path=f"screenshots/insta_08_confirmed_{review['booking_id']}.png")
                 break
