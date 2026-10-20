@@ -1,6 +1,7 @@
-"""Google カレンダー 準備時間ブロック自動挿入モジュール
+"""Google カレンダー 準備時間・片付け時間ブロック自動挿入モジュール
 
-スペースマーケットの予約の開始15分前に「準備時間」イベントを自動作成する。
+- スペースマーケットの予約: 開始15分前に「準備時間」
+- インスタベースの予約: 開始15分前に「準備時間」、終了後15分に「片付け時間」
 """
 
 import json
@@ -21,9 +22,25 @@ logger = logging.getLogger(__name__)
 
 JST = timezone(timedelta(hours=9))
 
+# 対象予約の判定ルール（タイトルに全キーワードを含むもの）と、入れるブロックの種類
+BOOKING_RULES = [
+    {
+        "name": "スペースマーケット",
+        "keywords": ["【予約完了】", "スペースマーケット"],
+        "prep": True,
+        "cleanup": False,
+    },
+    {
+        "name": "インスタベース",
+        "keywords": ["【インスタベース】"],
+        "prep": True,
+        "cleanup": True,
+    },
+]
+
 
 class CalendarPrepBlocker:
-    """スペースマーケット予約の前に準備時間ブロックを挿入する"""
+    """予約の前後に準備時間・片付け時間ブロックを挿入する"""
 
     def __init__(self, dry_run: bool = True):
         self.dry_run = dry_run
@@ -51,19 +68,12 @@ class CalendarPrepBlocker:
         self.service = build("calendar", "v3", credentials=credentials)
         logger.info("認証完了")
 
-    def get_spacemarket_events(self, target_date: datetime | None = None) -> list[dict]:
-        """スペースマーケットの予約イベントを取得する
-
-        「【予約完了】」かつ「スペースマーケット」を含むイベントを検索。
-        """
-        if target_date is None:
-            target_date = datetime.now(JST)
-
-        # 翌日〜7日後のイベントを検索（準備時間は未来の予約に必要）
-        time_min = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    def get_target_events(self) -> list[dict]:
+        """今日〜7日後の対象予約イベントを取得する"""
+        time_min = datetime.now(JST).replace(hour=0, minute=0, second=0, microsecond=0)
         time_max = time_min + timedelta(days=7)
 
-        logger.info(f"スペースマーケット予約を検索中: {time_min.date()} 〜 {time_max.date()}")
+        logger.info(f"予約を検索中: {time_min.date()} 〜 {time_max.date()}")
 
         events_result = self.service.events().list(
             calendarId=config.GOOGLE_CALENDAR_ID,
@@ -76,108 +86,112 @@ class CalendarPrepBlocker:
         events = events_result.get("items", [])
         logger.info(f"  全イベント数: {len(events)}件")
 
-        # スペースマーケットの予約をフィルタ
-        sm_events = []
+        targets = []
         for event in events:
             title = event.get("summary", "")
-            if "【予約完了】" in title and "スペースマーケット" in title:
-                start = event["start"].get("dateTime", "")
-                end = event["end"].get("dateTime", "")
-                sm_events.append({
-                    "id": event["id"],
-                    "title": title,
-                    "start": start,
-                    "end": end,
-                })
-                logger.info(f"  → 対象: {title}")
-                logger.info(f"       {start} 〜 {end}")
+            for rule in BOOKING_RULES:
+                if all(k in title for k in rule["keywords"]):
+                    start = event["start"].get("dateTime", "")
+                    end = event["end"].get("dateTime", "")
+                    targets.append({
+                        "id": event["id"],
+                        "title": title,
+                        "start": start,
+                        "end": end,
+                        "rule": rule,
+                    })
+                    logger.info(f"  → 対象[{rule['name']}]: {title}")
+                    logger.info(f"       {start} 〜 {end}")
+                    break
 
-        logger.info(f"スペースマーケット予約数: {len(sm_events)}件")
-        return sm_events
+        logger.info(f"対象予約数: {len(targets)}件")
+        return targets
 
-    def check_prep_block_exists(self, prep_start: str, prep_end: str) -> bool:
-        """指定時間帯に既に準備時間ブロックが存在するか確認する"""
+    def block_exists(self, block_title: str, block_start: str, block_end: str) -> bool:
+        """指定時間帯に同じタイトルのブロックが既に存在するか確認する"""
         events_result = self.service.events().list(
             calendarId=config.GOOGLE_CALENDAR_ID,
-            timeMin=prep_start,
-            timeMax=prep_end,
+            timeMin=block_start,
+            timeMax=block_end,
             singleEvents=True,
         ).execute()
 
-        events = events_result.get("items", [])
-        for event in events:
-            if event.get("summary", "") == config.PREP_EVENT_TITLE:
+        for event in events_result.get("items", []):
+            if event.get("summary", "") == block_title:
                 return True
         return False
 
-    def create_prep_block(self, event: dict) -> bool:
-        """スペースマーケット予約の前に準備時間ブロックを作成する"""
-        title = event["title"]
-        start_str = event["start"]
+    def create_block(self, booking_title: str, block_title: str,
+                     block_start_dt: datetime, block_end_dt: datetime) -> bool:
+        """ブロックイベントを作成する（既存ならスキップ）"""
+        block_start = block_start_dt.isoformat()
+        block_end = block_end_dt.isoformat()
+        span = f"{block_start_dt.strftime('%m/%d %H:%M')} 〜 {block_end_dt.strftime('%H:%M')}"
 
-        if not start_str:
-            logger.warning(f"  → {title}: 開始時間が不明、スキップ")
+        if self.block_exists(block_title, block_start, block_end):
+            logger.info(f"    {block_title} ({span}): 既存、スキップ")
             return False
-
-        # 開始時間の15分前を計算
-        start_dt = datetime.fromisoformat(start_str)
-        prep_start_dt = start_dt - timedelta(minutes=config.PREP_TIME_MINUTES)
-        prep_end_dt = start_dt
-
-        prep_start = prep_start_dt.isoformat()
-        prep_end = prep_end_dt.isoformat()
-
-        # 既に準備時間ブロックがあるか確認
-        if self.check_prep_block_exists(prep_start, prep_end):
-            logger.info(f"  → {title}: 準備時間ブロック既存、スキップ")
-            return False
-
-        logger.info(f"  → {title}: 準備時間ブロックを作成")
-        logger.info(f"       {prep_start_dt.strftime('%m/%d %H:%M')} 〜 {prep_end_dt.strftime('%H:%M')}")
 
         if self.dry_run:
-            logger.info("    [ドライラン] 作成をスキップしました")
+            logger.info(f"    {block_title} ({span}): [ドライラン] 作成をスキップ")
             return True
-
-        # イベントを作成
-        prep_event = {
-            "summary": config.PREP_EVENT_TITLE,
-            "start": {"dateTime": prep_start, "timeZone": "Asia/Tokyo"},
-            "end": {"dateTime": prep_end, "timeZone": "Asia/Tokyo"},
-            "description": f"自動作成: {title} の準備時間",
-        }
 
         self.service.events().insert(
             calendarId=config.GOOGLE_CALENDAR_ID,
-            body=prep_event,
+            body={
+                "summary": block_title,
+                "start": {"dateTime": block_start, "timeZone": "Asia/Tokyo"},
+                "end": {"dateTime": block_end, "timeZone": "Asia/Tokyo"},
+                "description": f"自動作成: {booking_title} の{block_title}",
+            },
         ).execute()
 
-        logger.info("    作成完了！")
+        logger.info(f"    {block_title} ({span}): 作成完了")
         return True
 
+    def create_blocks_for_booking(self, booking: dict) -> int:
+        """予約1件に対して必要なブロックを作成し、作成数を返す"""
+        title = booking["title"]
+        rule = booking["rule"]
+
+        if not booking["start"] or not booking["end"]:
+            logger.warning(f"  → {title}: 終日予定または時間不明、スキップ")
+            return 0
+
+        logger.info(f"  → {title}")
+        start_dt = datetime.fromisoformat(booking["start"])
+        end_dt = datetime.fromisoformat(booking["end"])
+        created = 0
+
+        if rule["prep"]:
+            prep_start = start_dt - timedelta(minutes=config.PREP_TIME_MINUTES)
+            if self.create_block(title, config.PREP_EVENT_TITLE, prep_start, start_dt):
+                created += 1
+
+        if rule["cleanup"]:
+            cleanup_end = end_dt + timedelta(minutes=config.CLEANUP_TIME_MINUTES)
+            if self.create_block(title, config.CLEANUP_EVENT_TITLE, end_dt, cleanup_end):
+                created += 1
+
+        return created
+
     def run(self):
-        """メイン処理: スペースマーケット予約の前に準備時間ブロックを挿入する"""
+        """メイン処理: 対象予約の前後にブロックを挿入する"""
         mode = "ドライラン" if self.dry_run else "本番"
-        logger.info(f"=== Google カレンダー 準備時間ブロック挿入 開始 ({mode}モード) ===")
+        logger.info(f"=== Google カレンダー ブロック挿入 開始 ({mode}モード) ===")
 
-        try:
-            self.authenticate()
-            events = self.get_spacemarket_events()
+        self.authenticate()
+        bookings = self.get_target_events()
 
-            if not events:
-                logger.info("対象のスペースマーケット予約はありません。")
-                return
+        if not bookings:
+            logger.info("対象の予約はありません。")
+            return
 
-            created_count = 0
-            for event in events:
-                try:
-                    if self.create_prep_block(event):
-                        created_count += 1
-                except Exception as e:
-                    logger.error(f"  → エラー: {e}")
+        created_count = 0
+        for booking in bookings:
+            try:
+                created_count += self.create_blocks_for_booking(booking)
+            except Exception as e:
+                logger.error(f"  → {booking['title']}: エラー: {e}")
 
-            logger.info(f"=== 完了: {created_count}件 準備時間ブロック作成 ({mode}) ===")
-
-        except Exception as e:
-            logger.error(f"処理中にエラーが発生: {e}")
-            raise
+        logger.info(f"=== 完了: {created_count}件 ブロック作成 ({mode}) ===")
