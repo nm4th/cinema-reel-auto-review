@@ -1,0 +1,42 @@
+name: カレンダー準備・片付け時間ブロック（1時間ごと）
+
+on:
+  # 毎時0分に実行（GitHub の混雑状況で数分遅れることがあります）
+  schedule:
+    - cron: '0 * * * *'
+
+  # 手動実行も可能
+  workflow_dispatch:
+
+# 前の実行が終わる前に次が始まって重複作成しないようにする
+concurrency:
+  group: calendar-block
+  cancel-in-progress: false
+
+env:
+  GOOGLE_CALENDAR_CREDENTIALS: ${{ secrets.GOOGLE_CALENDAR_CREDENTIALS }}
+  DRY_RUN: 'false'
+
+jobs:
+  calendar-block:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: claude/automate-guest-reviews-fwB7Y
+
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      # カレンダー処理はブラウザ不要なので Chromium のインストールは省略
+      - name: 依存パッケージをインストール
+        run: pip install -r requirements.txt
+
+      - name: 準備・片付け時間ブロックを挿入
+        run: python main.py --no-dry-run --service calendar
